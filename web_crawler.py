@@ -3,6 +3,7 @@ import argparse
 import requests
 from bs4 import BeautifulSoup
 from urllib.parse import urljoin, urlparse
+import os
 """
 should not use {} to initilize empty set here as it may cause confusion with empty dict as well ,better to implicitly 
 define it as a set using set() . Used set here to avoid repeating links in recursion as it will become an infinte loop otherwise
@@ -90,9 +91,17 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Web Crawler")
     parser.add_argument("-u", "--url", help="Start URL", required=True)
     parser.add_argument("-t", "--threshold", help="Recursion Depth Threshold", type=int, default=None)
+    parser.add_argument("-o","--output", help="Create an output file ", default="")
     args = parser.parse_args()
     start_url = args.url
     threshold = args.threshold
+    output_file=args.output
+    if output_file :
+        if os.path.exists(output_file) :
+            print("\nThis file already exists in the current directory..... Printing output on the command line\n\n")
+        else :
+            path=f"./{output_file}"
+            sys.stdout=open(path,"w")
     parsed_start_url = urlparse(start_url)
     start_domain = parsed_start_url.netloc
     if threshold>0 :
