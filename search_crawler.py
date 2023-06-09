@@ -1,5 +1,5 @@
 """
-Takes in a string and search that string inside the webpages if found a match then returns the link for it
+Takes in a string and search that string(case insensitive) inside the webpages if found a match then returns the link for it
 """
 import sys
 import argparse
@@ -7,6 +7,8 @@ import requests
 from bs4 import BeautifulSoup
 from urllib.parse import urljoin, urlparse
 
+int_links=0
+ext_links=0
 visited_links = set()
 internal_links = set()
 external_links = set()
@@ -31,8 +33,8 @@ def crawl(url, start_domain, search_string, depth=1, max_depth=None):
         print("Failed to crawl:", url)
         return
 
-    soup = BeautifulSoup(response.text, "html.parser")
-    links = soup.find_all(["a", "img", "link", "script"])
+    soup = BeautifulSoup(response.text, "lxml")
+    links = soup.find_all(["a", "img", "link", "script","iframe","form"])
 
     for link in links:
         if "href" in link.attrs:
@@ -50,22 +52,34 @@ def crawl(url, start_domain, search_string, depth=1, max_depth=None):
             else:
                 next_url = urljoin(url, src)
             process_url(next_url, start_domain, search_string, depth + 1, max_depth)
-
+       
+        if "action" in link.attrs :
+            action = link["action"]
+            if action.startswith("http") :
+                next_url = action
+            else :
+                next_url = urljoin(url, action)
+            process_url(next_url, start_domain, depth+1, max_depth)
+            
 def process_url(url, start_domain, search_string, depth=1, max_depth=None):
     """
     Processes the URL and determines whether to crawl or consider it as an internal or external link.
     Searches for the specified string within the page content.
     """
-
+    global int_links 
+    global ext_links
     parsed_url = urlparse(url)
     domain = parsed_url.netloc
     if domain == start_domain:
         if url not in visited_links:
             if max_depth is None or depth <= max_depth:
+                int_links+=1
                 internal_links.add(url)
                 crawl(url, start_domain, search_string, depth, max_depth)
     else:
-        external_links.add(url)
+        if url not in external_links :
+            ext_links+=1
+            external_links.add(url)
 
 def search_string_in_page(url, search_string):
     """
@@ -82,8 +96,8 @@ def search_string_in_page(url, search_string):
     if response.status_code != 200:
         return False
 
-    content = response.text
-    return search_string in content
+    page_text = response.text
+    return search_string.lower() in page_text.lower() # It does case insensitive searching
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Web Crawler")
@@ -107,17 +121,25 @@ if __name__ == "__main__":
     print("\nInternal links:")
     for link in internal_links:
         print(link)
+    print(f"\nTotal Internal Links = {int_links} \n")
 
     print("\nExternal links:")
     for link in external_links:
         print(link)
-
+    print(f"\nTotal External Links = {ext_links} \n")
     if search_string:
         print("\nSearch results:")
         found = False
         for link in internal_links:
             if search_string_in_page(link, search_string):
                 found = True
-                print(f"Link: {link}")
+                print(f"Search result in Internal Link: {link}")
         if not found:
-            print("No links found with the search string.")
+            print("\nNo Internal link found with the search string.\n")
+        found=False
+        for link in external_links :
+            if search_string_in_page(link,search_string) :
+                found=True
+                print(f"Search result in External Link: {link}")
+        if not found :
+            print("\nNo External link with the search string.\n")
