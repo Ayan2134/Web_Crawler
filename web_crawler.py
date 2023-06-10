@@ -74,8 +74,6 @@ def process_url(url, start_domain, depth, max_depth):
     """
     Processes the URL and determines whether to crawl or consider it as an internal or external link.
     """
-    global int_links
-    global ext_links
     parsed_url = urlparse(url)
     domain = parsed_url.netloc
     if domain == start_domain:
@@ -86,25 +84,46 @@ def process_url(url, start_domain, depth, max_depth):
     else:
         if url not in external_links : #to count only unique external links although it doesn't matter as it is a set
             external_links.add(url)
+    
+def search_string_source_code(url, search_string):
+    """
+    Fetches the HTML content of the page at the specified URL and searches for the string within the content.
+    Returns True if the string is found, False otherwise.
+    """
+
+    try:
+        response = requests.get(url)
+    except requests.exceptions.RequestException as e:
+        print("An error occurred:", e)
+        return False
+
+    if response.status_code != 200:
+        return False
+
+    page_text = response.text
+    return search_string.lower() in page_text.lower() # It does case insensitive searching
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Web Crawler")
     parser.add_argument("-u", "--url", help="Start URL", required=True)
     parser.add_argument("-t", "--threshold", help="Recursion Depth Threshold", type=int, default=None)
+    parser.add_argument("-s", "--search", help="Search String", default="")
     parser.add_argument("-o","--output", help="Create an output file ", default="")
     args = parser.parse_args()
     start_url = args.url
     threshold = args.threshold
     output_file=args.output
-    if output_file :
-        if os.path.exists(output_file) :
-            print("\nThis file already exists in the current directory..... Printing output on the command line\n\n")
-        else :
-            path=f"./{output_file}"
-            sys.stdout=open(path,"w")
+    search_string = args.search
     parsed_start_url = urlparse(start_url)
     start_domain = parsed_start_url.netloc
-    if threshold>0 :
+    if threshold is None or threshold>0 :
+        if output_file :
+            if os.path.exists(output_file) :
+                print("\nThis file already exists in the current directory..... Printing output on the command line\n\n")
+            else :
+                path=f"./{output_file}"
+                sys.stdout=open(path,"w")
         crawl(start_url, start_domain, 1,threshold)
         print("\nInternal links:")
         for link in internal_links:
@@ -114,6 +133,22 @@ if __name__ == "__main__":
         for link in external_links:
             print(link)
         print(f"\nTotal External Links = {len(external_links)} \n")
+        if search_string:
+            print("\nSearch results:")
+            found = False
+            for link in internal_links:
+                if search_string_source_code(link, search_string):
+                    found = True
+                    print(f"Search result in Internal Link: {link}")
+            if not found:
+                print("\nNo Internal link found with the search string.\n")
+            found=False
+            for link in external_links :
+                if search_string_source_code(link,search_string) :
+                    found=True
+                    print(f"Search result in External Link: {link}")
+            if not found :
+                print("\nNo External link with the search string.\n")
 
     else :
         print("Invalid Threshhold")
